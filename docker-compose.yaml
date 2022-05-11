@@ -1,0 +1,71 @@
+services:
+
+  mongo:
+    image: mongo
+    container_name: mongo-app
+    restart: always
+    ports:
+      - '27018:27017'
+    environment:
+      MONGODB_HOSTNAME: mongo-app
+    networks:
+      - app-tier
+
+  python_app:
+    build:
+      context: .
+      dockerfile: Dockerfile  
+    restart: always
+    ports:
+      - '5002:5000'
+    depends_on:
+      - mongo
+    networks:
+      - app-tier
+    depends_on:
+      - elasticsearch
+      - fluentd
+    logging:
+      driver: "fluentd"
+      options:
+        fluentd-address: localhost:24224
+        fluentd-async-connect: "true"
+        tag: fluent           
+  fluentd:
+    build: ./fluentd/fluentd
+    volumes:
+      - ./fluentd/conf:/fluentd/etc
+    networks:
+      - app-tier      
+    depends_on:
+        - "elasticsearch"
+    ports:
+      - "24224:24224"
+      - "24224:24224/udp"
+
+  elasticsearch:
+    image: elasticsearch:6.8.20
+    container_name: elasticsearch
+    networks:
+      - app-tier    
+    environment:
+      - "discovery.type=single-node"
+    expose:
+      - "9200"
+    ports:
+      - "9200:9200"
+
+  kibana:
+    image: kibana:6.8.20
+    depends_on:
+        - "elasticsearch"
+    networks:
+      - app-tier        
+    ports:
+      - "5601:5601"
+
+
+
+networks:
+  app-tier:
+    driver: bridge
